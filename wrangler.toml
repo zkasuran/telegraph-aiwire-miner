@@ -1,0 +1,13 @@
+name = "telegraph-ai"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# AIWire language miner for Telegraph. Serves SENTIMENT_ANALYSIS (/sentiment),
+# TEXT_CLASSIFICATION (/classify) and TEXT_GENERATION (/generate) by calling the MiniMax
+# language model at request time.
+#
+# One secret is required and it is NOT stored here. Set it once on the deployed worker:
+#   wrangler secret put MINIMAX_API_KEY
+# The worker reads it as env.MINIMAX_API_KEY. The key never goes in this file, in worker.js
+# or anywhere else in the repo. With no key the worker still answers 200 with a degraded
+# summary rather than a non-200, which the node would score as no answer.

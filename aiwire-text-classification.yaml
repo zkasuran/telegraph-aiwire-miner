@@ -1,0 +1,99 @@
+version: "1"
+kind: miner
+id: 7411
+slug: aiwire-text-classification
+protocol: generic
+name: AIWire Text Classification
+description: >
+  Text classification, answered by a language model at request time. Send the text or the
+  whole question and the miner assigns it to the single most appropriate category with one
+  short reason it fits. When the request names a set of categories the miner chooses only from
+  those. The answer is produced with MiniMax under a commercial plan held by the operator, so
+  this miner is not keyless. Serves the TEXT_CLASSIFICATION intent.
+base_url: https://telegraph-ai.margyn.workers.dev
+
+docs:
+  documentation: https://telegraph-ai.margyn.workers.dev/
+
+limitations:
+  - code: MAX_PARAM_VALUE
+    message: text is the text to classify or the whole question. A single passage, not a batch.
+    param: text
+    property: length
+    value_num: 8000
+    operator: lte
+
+rate_limit_per_sec: 2
+cache_ttl_sec: 10
+circuit_threshold: 5
+circuit_cooldown_seconds: 30
+
+input_schema:
+  type: object
+  properties:
+    question:
+      type: string
+      description: >
+        The full natural-language question, verbatim, for example 'Classify this ticket: "..."'.
+        The miner reads the text from it, so passing the whole question works as well as
+        passing the text on its own. Name any fixed set of categories inside the question.
+    text:
+      type: string
+      description: The text to assign to a category.
+
+output_schema:
+  type: object
+  properties:
+    category:
+      type: string
+      description: The single category the text was assigned to.
+    summary:
+      type: string
+      description: The category followed by one short sentence explaining why it fits.
+    confidence:
+      type: number
+      description: 0.96 for a direct model answer, lower when the answer is degraded.
+    as_of:
+      type: string
+      description: Timestamp the answer was produced.
+
+endpoints:
+  - path: /classify
+    external_path: /classify
+    method: GET
+    description: >
+      A category for one passage, the text as a query parameter (?text=...). Also accepts a
+      whole question in ?question= or ?query=.
+
+semantics:
+  signal_mapping:
+    confidence_field: confidence
+    label_field: summary
+    reason_field: summary
+  supported_intents:
+    - TEXT_CLASSIFICATION
+
+on_chain:
+  transform: direct
+  min_price_usdc: 0.01
+  fields:
+    strings:
+      - index: 0
+        name: category
+        description: The single category the text was assigned to.
+        source_path: category
+      - index: 1
+        name: summary
+        description: The category plus one short reason.
+        source_path: summary
+    integers:
+      - index: 0
+        name: confidence_x100
+        description: Confidence in the answer, scaled by one hundred to keep two digits as an integer.
+        source_path: confidence
+        multiplier: 100
+  request:
+    - endpoint: classify
+      method: GET
+      query_params:
+        text: { source: strings.1 }
