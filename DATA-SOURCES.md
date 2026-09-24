@@ -16,7 +16,7 @@ free public feed.
 
 | Host | Provides | Plan | Output ownership | Commercial use | Rate limit |
 | --- | --- | --- | --- | --- | --- |
-| api.minimax.io | MiniMax-M2.5-highspeed answers for SENTIMENT_ANALYSIS, TEXT_CLASSIFICATION and TEXT_GENERATION | Paid commercial MiniMax plan held by the operator, key as a Cloudflare secret | User keeps ownership of generated content per MiniMax's readable consumer terms, but the exact paid Open Platform clause could not be read (unverified, open item) | Not confirmed for the paid API surface, see the open item below | Governed by the paid plan, not published as a fixed public number; this miner declares 2 requests per second and makes one model call per request |
+| api.minimax.io | MiniMax-M2.5-highspeed answers for SENTIMENT_ANALYSIS, TEXT_CLASSIFICATION, TEXT_GENERATION and LANGUAGE_GENERATION | Paid commercial MiniMax plan held by the operator, key as a Cloudflare secret | User keeps ownership of generated content per MiniMax's readable consumer terms, but the exact paid Open Platform clause could not be read (unverified, open item) | Not confirmed for the paid API surface, see the open item below | Governed by the paid plan, not published as a fixed public number; this miner declares 2 requests per second and makes one model call per request |
 
 ## Per source
 

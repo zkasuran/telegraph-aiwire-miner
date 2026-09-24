@@ -1,6 +1,6 @@
 # AIWire language miner for Telegraph
 
-One Cloudflare Worker that answers three model-judged Telegraph intents by calling a language
+One Cloudflare Worker that answers model-judged Telegraph intents by calling a language
 model at request time and returning its answer as the graded summary.
 
 | Intent | Endpoint | Descriptor id | The answer is |
@@ -8,8 +8,9 @@ model at request time and returning its answer as the graded summary.
 | SENTIMENT_ANALYSIS | `/sentiment` | 7410 | the sentiment (positive, negative, neutral or mixed) plus one short reason |
 | TEXT_CLASSIFICATION | `/classify` | 7411 | the single best category plus one short reason it fits |
 | TEXT_GENERATION | `/generate` | 7412 | the text the prompt asked for and nothing else |
+| LANGUAGE_GENERATION | `/language-generation` | 7413 | a direct, concise, complete answer to the request |
 
-These three are the model-judged tier of the network. The node writes its own ground truth for
+These are the model-judged tier of the network. The node writes its own ground truth for
 each one with a model, so a genuinely correct answer to the question is what scores. This miner
 produces that answer with MiniMax rather than guessing a shape.
 
@@ -35,6 +36,7 @@ declared, never a template, so the node's exact-path match always lands.
 GET /sentiment?text=<the text or the whole question>
 GET /classify?text=<the text or the whole question>
 GET /generate?prompt=<the writing task or the whole question>
+GET /language-generation?prompt=<the request or the whole question>
 ```
 
 The text is read from the first non-empty of `text`, `question`, `query`, `q`, `input`,
@@ -87,21 +89,34 @@ The secret is set on the deployed worker, not in this repo. `GET /health` report
 ## Verified before ship
 
 Scored offline under each intent's own live scoring module with
-`work/telegraph/minerlab/rank.py`, against the current leader's live answer as the ground-truth
+`work/telegraph/minerlab/rank.py`, against the current live leader's answer as the ground-truth
 proxy. A real MiniMax answer to a representative probe question scored:
 
 | Intent | MiniMax answer | Leader (self) | Verdict |
 | --- | --- | --- | --- |
-| SENTIMENT_ANALYSIS | 1.0000 | 1.0000 | matches the leader |
-| TEXT_CLASSIFICATION | 1.0000 | 0.9922 | matches the leader |
-| TEXT_GENERATION | 0.0000 | 0.9999 | does not match |
+| LANGUAGE_GENERATION | 0.9984 | 0.9998 | matches the leader, built |
+| CHAT_COMPLETION | 0.0000 | 1.0000 | does not match, not built |
+| TELEGRAPH_KNOWLEDGE | 0.0000 | 1.0000 | does not match, not built |
+| TEXT_GENERATION | 0.0000 | 0.9999 | does not match, served but not registered |
 
-Sentiment and classification are model-judged on the label plus a short reason, so an
-independent correct answer lands on the leader. Text generation is graded by near-exact
-similarity to the node's own hidden reference, so two well-written but differently worded
-outputs score apart. An independent generation answer does not match and this miner does not
-try to reproduce a hidden reference. The generation route is served and honest, but it is not
-expected to score on open prompts.
+LANGUAGE_GENERATION is graded semantically. Its answers are longer informational paragraphs
+where the shared facts dominate the embedding, so an independent MiniMax answer converges with
+the leader and scores 0.998. The live board carries six independent miners at 0.998 to
+0.999. That is why it is registered and built here.
+
+TEXT_GENERATION, CHAT_COMPLETION and TELEGRAPH_KNOWLEDGE are not. Text generation and chat
+completion are graded by near-exact similarity to the node's own hidden reference, so two
+well-written but differently worded outputs score apart and a genuinely good independent answer
+scores about zero. Telegraph knowledge has no achievable leader on the board (every miner scores
+about 1e-11) and the model holds no special Telegraph knowledge. These routes are not chased,
+because reproducing a hidden reference is not honest independent work.
+
+Note on the short-answer routes: SENTIMENT_ANALYSIS and TEXT_CLASSIFICATION answers are a single
+label plus one short reason, where wording dominates the embedding for such short text. Measured
+2026-09-25, an independent MiniMax answer scored 0.0 against the current live winner frame on both,
+and the miner has no live score rows for either yet. Confirm they score on the live board before
+relying on them, the same near-exact sensitivity that rules out chat completion applies to short
+answers.
 
 ## Licence and data terms
 

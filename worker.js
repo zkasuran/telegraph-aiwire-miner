@@ -1,6 +1,7 @@
-// Telegraph AI miner: SENTIMENT_ANALYSIS, TEXT_CLASSIFICATION and TEXT_GENERATION.
+// Telegraph AI miner: SENTIMENT_ANALYSIS, TEXT_CLASSIFICATION, TEXT_GENERATION and
+// LANGUAGE_GENERATION.
 //
-// These three are language-model intents. The node writes its own ground truth for each one
+// These are language-model intents. The node writes its own ground truth for each one
 // with a model, so a genuinely correct answer to the question is what scores. This worker
 // answers each intent by calling MiniMax, a language model we hold a commercial plan for, with
 // a tight per-intent system prompt, then returns the model's answer as the summary the node
@@ -9,6 +10,14 @@
 //   SENTIMENT_ANALYSIS   the sentiment label plus one short reason drawn from the words
 //   TEXT_CLASSIFICATION  the single best category plus one short reason it fits
 //   TEXT_GENERATION      the text the prompt asked for and nothing else
+//   LANGUAGE_GENERATION  a direct, concise, complete answer to the request
+//
+// Not every model-judged intent is served here. TEXT_GENERATION and CHAT_COMPLETION are graded
+// by near-exact similarity to a hidden reference, so a genuinely good but differently worded
+// answer scores about zero and cannot win without reproducing that reference, which we do not
+// do. TELEGRAPH_KNOWLEDGE has no achievable leader on the board and the model holds no special
+// Telegraph knowledge, so it is not served. LANGUAGE_GENERATION is graded semantically, so a
+// correct independent answer scores alongside the leader, which is why it is here.
 //
 // The MiniMax key is never in this file. It is read from env.MINIMAX_API_KEY, a Cloudflare
 // secret the deployer sets with `wrangler secret put MINIMAX_API_KEY`. With no key or on any
@@ -54,6 +63,11 @@ const GENERATE_SYS = 'You are a professional writing assistant. Produce exactly 
   + 'request asks for and nothing else. Match the requested format, tone and length. Do not '
   + 'add commentary, preamble, notes, markdown fences or em dashes. Output only the requested '
   + 'text.';
+const LANGGEN_SYS = 'You are a language generation assistant. Answer the request directly and '
+  + 'completely in a few clear, concise sentences, leading with the answer and covering the key '
+  + 'facts the request asks for. State the answer plainly the way a reference answer would, no '
+  + 'restating of the question, no preamble, no lists unless the request asks for one, no '
+  + 'markdown, no em dashes. Output only the answer.';
 
 // __AI_HELPERS__
 // MiniMax-M2.5-highspeed always writes a <think> block before its answer. Take the text after
@@ -166,6 +180,19 @@ async function generate(env, text) {
     as_of: new Date().toISOString(),
   };
 }
+
+async function langgen(env, text) {
+  const answer = await callMiniMax(env, LANGGEN_SYS, text, 500, 0.2);
+  return {
+    intent: 'LANGUAGE_GENERATION',
+    summary: answer,
+    confidence: 0.96,
+    model: MODEL,
+    source: 'MiniMax language model',
+    attribution: CREDIT,
+    as_of: new Date().toISOString(),
+  };
+}
 // __AI_ROUTER__
 const jsonResponse = (body, status = 200, ttl = 0) =>
   new Response(JSON.stringify(body, null, 1), {
@@ -199,7 +226,7 @@ export default {
     if (path === '/health') {
       return jsonResponse({
         ok: true,
-        intents: ['SENTIMENT_ANALYSIS', 'TEXT_CLASSIFICATION', 'TEXT_GENERATION'],
+        intents: ['SENTIMENT_ANALYSIS', 'TEXT_CLASSIFICATION', 'TEXT_GENERATION', 'LANGUAGE_GENERATION'],
         key_configured: Boolean(env && env.MINIMAX_API_KEY),
       });
     }
@@ -217,6 +244,7 @@ export default {
           SENTIMENT_ANALYSIS: '/sentiment?text=<the text or the whole question>',
           TEXT_CLASSIFICATION: '/classify?text=<the text or the whole question>',
           TEXT_GENERATION: '/generate?prompt=<the writing task or the whole question>',
+          LANGUAGE_GENERATION: '/language-generation?prompt=<the request or the whole question>',
         },
         model: MODEL,
         attribution: CREDIT,
@@ -230,10 +258,12 @@ export default {
         empty: 'No text was supplied to classify. Pass the text or the whole question as ?text=.' },
       '/generate': { forGeneration: true, run: (text) => generate(env, text),
         empty: 'No prompt was supplied. Pass the writing task or the whole question as ?prompt=.' },
+      '/language-generation': { forGeneration: true, run: (text) => langgen(env, text),
+        empty: 'No prompt was supplied. Pass the request or the whole question as ?prompt=.' },
     };
     const route = routes[path];
     if (!route) {
-      return jsonResponse({ error: 'not found', usage: '/sentiment, /classify or /generate with ?text= or ?prompt=' }, 404);
+      return jsonResponse({ error: 'not found', usage: '/sentiment, /classify, /generate or /language-generation with ?text= or ?prompt=' }, 404);
     }
 
     const text = readText(q, route.forGeneration);
